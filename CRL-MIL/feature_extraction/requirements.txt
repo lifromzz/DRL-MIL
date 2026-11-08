@@ -1,0 +1,7 @@
+# Install a matching PyTorch/torchvision pair for your CUDA or CPU platform first.
+torch>=2.0
+torchvision>=0.15
+timm>=0.9.16,<2
+Pillow>=9.0
+tqdm>=4.64
+huggingface_hub>=0.20

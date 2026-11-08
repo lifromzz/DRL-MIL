@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.whl
+*.7z
+CRL-MIL/feature_extraction/Checkpoint/
+CRL-MIL/feature_extraction/gigapath/
+CRL-MIL/feature_extraction/features/
