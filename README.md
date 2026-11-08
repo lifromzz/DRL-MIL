@@ -1,7 +1,7 @@
-# CRL-MIL
-# CRL-MIL: Causal Representation Learning for Multi-Instance Learning
+# DRL-MIL
+# DRL-MIL: Reformulating Single-Stream MIL as Cross-Branch Adversarial Dual-Stream Learning for Improved WSI Classification
 
-This repository contains the official implementation of the **CRL-MIL** framework, which leverages causal representation learning to improve weakly supervised whole slide image (WSI) classification in the multiple instance learning (MIL) setting.
+This repository contains the official implementation of the **DRL-MIL** framework, which leverages causal representation learning to improve weakly supervised whole slide image (WSI) classification in the multiple instance learning (MIL) setting.
 
 ---
 
