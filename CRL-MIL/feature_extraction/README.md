@@ -9,12 +9,25 @@ encoder is not used by these scripts.
 
 ## Installation and input layout
 
-Install a matching PyTorch/torchvision pair for your CPU/CUDA environment, then,
-from `CRL-MIL/`:
+Follow the [fresh-clone environment setup](../../README.md#start-from-a-fresh-clone)
+first. From `DRL-MIL/CRL-MIL`, the tested CPU baseline is:
 
 ```bash
-python -m pip install -r feature_extraction/requirements.txt
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -c constraints-preprocessing.txt -r feature_extraction/requirements.txt
+python -m pip check
 ```
+
+Use the `cu124` wheel index instead of `cpu` for a compatible NVIDIA system.
+Keep the selected Python environment active (or use its Python executable path).
+The quick start uses `--bs 1 --num_workers 0 --device cpu`; these settings also
+avoid multiprocessing setup issues on the first Windows run. CPU GigaPath is
+slow and needs substantial host memory for the roughly 4.5 GB checkpoint and
+model; a machine with at least 16 GB system RAM and enough free memory is a
+practical starting point. For throughput, switch to `--device cuda` and increase
+batch size/workers gradually according to available GPU and host memory.
+
+Create the following patch layout before running the real data commands:
 
 ```text
 patches/
@@ -42,12 +55,21 @@ defaults `mean=[0.7476,0.5583,0.6705]`, `std=[0.1884,0.2474,0.1961]`.
 These are the source script's CPTAC statistics, not universal defaults for all
 cohorts; `--mean` and `--std` accept three floats each.
 
+First download the exact official ImageNet checkpoint (no login required).
+The command checks its full SHA-256:
+
+```bash
+python -c "from pathlib import Path; from torch.hub import download_url_to_file; Path('feature_extraction/Checkpoint').mkdir(parents=True, exist_ok=True); download_url_to_file('https://download.pytorch.org/models/resnet50-19c8e357.pth', 'feature_extraction/Checkpoint/resnet50-19c8e357.pth', hash_prefix='19c8e3572231adff6824a2da93fd67b5986919a2e65f8b6007eab4edee220097')"
+```
+
+Then extract features:
+
 ```bash
 # Current CRL-MIL BagDataset_GPU.py expects a plain [N,D] tensor.
-python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir /path/to/features_resnet --checkpoint /path/to/resnet50-19c8e357.pth --arch resnet50 --stage stage4 --output-format tensor --bs 128 --num_workers 4 --device cuda
+python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir outputs/features_resnet --checkpoint feature_extraction/Checkpoint/resnet50-19c8e357.pth --arch resnet50 --stage stage4 --output-format tensor --bs 1 --num_workers 0 --device cpu
 
 # Historical serialization (default): {"l3": tensor}, {"l4": tensor}, or {"l34": tensor}.
-python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir /path/to/features_legacy --checkpoint /path/to/resnet50-19c8e357.pth --stage stage3 --output-format legacy
+python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir outputs/features_legacy --checkpoint feature_extraction/Checkpoint/resnet50-19c8e357.pth --stage stage3 --output-format legacy --bs 1 --num_workers 0 --device cpu
 ```
 
 Outputs go to `<repre_dir>/<stage>/<slide_id>.pt`. Choose `--output-format tensor`
@@ -87,12 +109,17 @@ The checkpoint is about 4.54 GB (4.23 GiB) and is intentionally not committed.
 The two files must come from the same checkpoint version. No `slide_encoder.pth`
 or GigaPath-Flash checkpoint is required.
 
-After authenticating locally with Hugging Face if needed, download the files:
+1. Sign in to the linked model page and complete its access requirements.
+2. Authenticate locally with a token that can read that model (do not put it in
+   source code). The login command below prompts interactively; skip it if
+   already authenticated.
+3. Download the two files, then run extraction:
 
 ```bash
+python -c "from huggingface_hub import login; login()"
 python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='prov-gigapath/prov-gigapath', allow_patterns=['config.json','pytorch_model.bin'], local_dir='feature_extraction/gigapath')"
 
-python feature_extraction/save_represention_Prov-GigaPath.py --data_dir /path/to/patches --repre_dir /path/to/features_gigapath --checkpoint-dir feature_extraction/gigapath --bs 64 --num_workers 4 --device cuda
+python feature_extraction/save_represention_Prov-GigaPath.py --data_dir /path/to/patches --repre_dir outputs/features_gigapath --checkpoint-dir feature_extraction/gigapath --bs 1 --num_workers 0 --device cpu
 ```
 
 The extraction command loads local files and makes no model-download request.
@@ -109,6 +136,34 @@ for digital pathology from real-world data.** Nature 630, 181-188 (2024).
 [official implementation](https://github.com/prov-gigapath/prov-gigapath),
 [model and weights](https://huggingface.co/prov-gigapath/prov-gigapath).
 Machine-readable references are provided in [references.bib](references.bib).
+
+## Verify before extracting a cohort
+
+These commands generate temporary RGB patches and call the actual extraction
+scripts. They require the downloaded weights but no WSI data:
+
+```bash
+python tests/smoke_features.py --resnet-checkpoint feature_extraction/Checkpoint/resnet50-19c8e357.pth --device cpu
+python tests/smoke_features.py --gigapath-dir feature_extraction/gigapath --device cpu
+```
+
+Success prints `PASS ResNet` / `PASS Prov-GigaPath`. ResNet's three output
+dimensions and both serialization formats are checked, along with patch row
+order and skipping completed slides. GigaPath must process the first slide and
+produce finite `[2,1536]` features. To test worker spawning on your platform,
+add `--num-workers 2`; to test your GPU, use `--device cuda`.
+
+For your real data, inspect a bag with:
+
+```bash
+python -c "import torch; x=torch.load('outputs/features_resnet/stage4/slide_001.pt', map_location='cpu', weights_only=True); print(x.shape)"
+```
+
+Replace `slide_001` with an actual slide ID. Tensor-mode stage 4 should print
+`[N,2048]`; GigaPath should print `[N,1536]`. `N` is the number of supported
+image files directly inside that slide folder. Empty folders are skipped;
+patches nested another level down are not read. A 401/403 during GigaPath
+download usually means the model access or local login step is incomplete.
 
 ## Release behavior and reproducibility
 
@@ -132,3 +187,5 @@ manifests, and skipping completed slides. The actual local Prov-GigaPath
 checkpoint was also run on two synthetic RGB patches, producing finite
 `[2,1536]` CPU features from the first slide folder. These checks verify the release;
 they do not reproduce the paper's full training experiments.
+Both real encoders were subsequently tested in a fresh Python 3.12.7 CPU venv;
+see the [fresh-clone audit](../tests/README.md#fresh-clone-audit-on-2026-11-08).

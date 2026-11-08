@@ -12,3 +12,5 @@ __pycache__/
 CRL-MIL/feature_extraction/Checkpoint/
 CRL-MIL/feature_extraction/gigapath/
 CRL-MIL/feature_extraction/features/
+CRL-MIL/outputs/
+CRL-MIL/inputs/

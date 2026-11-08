@@ -5,13 +5,51 @@
 ```text
 CRL-MIL/
   process/             # Patient-level and slide-level five-fold split generation
+    metadata/          # Ordered BRACS and CPTAC-Lung slide/label manifests
   feature_extraction/  # ResNet and Prov-GigaPath instance feature extraction
+  tests/               # Split regression tests and real-weight feature smoke tests
   data/                # Existing dataset split CSVs
   Models/              # MIL backbones and attention modules
   Lightning/           # Feature-bag loading, training, and evaluation
   Config/              # Paths, model dimensions, and training configuration
   train/               # Training entry points
 ```
+
+## Start from a fresh clone
+
+The preprocessing workflow is tested with **Python 3.12 on Windows** in an isolated CPU
+environment and Python 3.9 with CUDA 12.4. The commands below cover preprocessing;
+they do not install the separate full MIL training environment.
+
+```bash
+git clone https://github.com/lifromzz/DRL-MIL.git
+cd DRL-MIL/CRL-MIL
+python -m venv .venv
+```
+
+Activate the environment with `source .venv/bin/activate` on Linux/macOS or
+`.\.venv\Scripts\Activate.ps1` in Windows PowerShell. If activation is unavailable,
+use `.venv/bin/python` or `.\.venv\Scripts\python.exe` instead of `python` below.
+Keep the working directory at **`DRL-MIL/CRL-MIL`** for all remaining commands.
+Paths containing spaces must be quoted.
+
+```bash
+# Windows/Linux CPU baseline; works without an NVIDIA GPU.
+python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install -c constraints-preprocessing.txt -r process/requirements.txt -r feature_extraction/requirements.txt
+python -m pip check
+```
+
+For a compatible NVIDIA system, use
+`--index-url https://download.pytorch.org/whl/cu124` in the first installation
+command instead. See the [official PyTorch version instructions](https://pytorch.org/get-started/previous-versions/).
+On macOS, use the matching platform-specific PyTorch installation command from
+that page instead of the Windows/Linux wheel-index commands above.
+[constraints-preprocessing.txt](CRL-MIL/constraints-preprocessing.txt) pins the
+main libraries used for this audit. CPU is a functional fallback; a suitable GPU
+is recommended for full-cohort GigaPath extraction.
+If a package download times out, retry the same pip command with
+`--timeout 120 --retries 5`.
 
 ## Dataset preparation and five-fold splits
 
@@ -38,19 +76,26 @@ The default preserves historical identifiers and fold assignments. Supplying
 the explicit map with strict mode produces official IDs but may change the
 sorted order and fold assignments; keep that as a separate split version.
 
-Run from the repository root:
+The two ordered `path,STAS` manifests are included under
+[process/metadata/](CRL-MIL/process/metadata/README.md), so the slide workflows and
+CPTAC patient workflow can run immediately after installation. BRACS patient
+splits additionally require the official `BRACS.xlsx` from the
+[BRACS download portal](https://www.bracs.icar.cnr.it/download/) (dataset access
+required). Save it as `inputs/BRACS.xlsx`, or substitute its actual path.
+
+From `DRL-MIL/CRL-MIL`:
 
 ```bash
-cd CRL-MIL
-python -m pip install -r process/requirements.txt
-python process/create_kflod.py --input-csv /path/to/cptac_lung.csv --output-dir data/cptac_lung_slide
-python process/create_patient_split.py --dataset bracs --bracs-xlsx /path/to/BRACS.xlsx --output-root data
-python process/create_patient_split.py --dataset cptac --cptac-csv /path/to/cptac_lung.csv --output-root data
+python process/create_kflod.py --input-csv process/metadata/BRACS.csv --output-dir outputs/splits/BRACS_slide
+python process/create_kflod.py --input-csv process/metadata/cptac_lung.csv --output-dir outputs/splits/cptac_lung_slide
+python process/create_patient_split.py --dataset cptac --cptac-csv process/metadata/cptac_lung.csv --output-root outputs/splits
+python process/create_patient_split.py --dataset bracs --bracs-xlsx inputs/BRACS.xlsx --output-root outputs/splits
 ```
 
 Each split folder contains `fold0_train.csv`, `fold0_val.csv`, `fold0_test.csv`,
-through fold 4. These scripts use locally supplied metadata; this update does
-not replace the existing split CSVs in `data/`.
+through fold 4: **15 fold CSVs per dataset/protocol**. Patient folders also contain
+one summary CSV. Examples write under `outputs/` and leave the historical
+`data/` splits intact. Keep manifest row order unchanged to reproduce slide folds.
 
 ## Instance feature extraction
 
@@ -69,11 +114,15 @@ its original dictionary serialization by default; use **`--output-format tensor`
 with the current CRL-MIL loader, which expects an `[N,D]` tensor.
 
 ```bash
-# From CRL-MIL/; install a matching PyTorch/torchvision pair for your platform.
-python -m pip install -r feature_extraction/requirements.txt
-python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir /path/to/features_resnet --checkpoint /path/to/resnet50-19c8e357.pth --stage stage4 --output-format tensor
-python feature_extraction/save_represention_Prov-GigaPath.py --data_dir /path/to/patches --repre_dir /path/to/features_gigapath --checkpoint-dir /path/to/gigapath
+# First obtain weights as described in feature_extraction/README.md.
+# Replace /path/to/patches with your slide-folder tree of image patches.
+python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir outputs/features_resnet --checkpoint feature_extraction/Checkpoint/resnet50-19c8e357.pth --stage stage4 --output-format tensor --bs 1 --num_workers 0 --device cpu
+python feature_extraction/save_represention_Prov-GigaPath.py --data_dir /path/to/patches --repre_dir outputs/features_gigapath --checkpoint-dir feature_extraction/gigapath --bs 1 --num_workers 0 --device cpu
 ```
+
+These are conservative first-run settings; use `--device cuda` and increase
+batch size/workers as memory permits. Clone alone does not provide WSI patches
+or pretrained weights. Raw WSI tiling is outside these extraction scripts.
 
 Large pretrained weights are not stored in this repository:
 
@@ -92,6 +141,27 @@ preprocessing, checkpoint checksum, output formats, and release validation;
 [BibTeX references](CRL-MIL/feature_extraction/references.bib) are included.
 The supplied ResNet checkpoint is ImageNet pretrained; historical `BT` directory
 names in the training configuration do not identify its pretraining method.
+
+## Check your installation
+
+```bash
+# No images, model weights, or BRACS account needed for the split tests.
+python -m unittest discover -s tests -p test_splits.py -v
+
+# Actual encoders on generated RGB test patches; download weights first.
+python tests/smoke_features.py --resnet-checkpoint feature_extraction/Checkpoint/resnet50-19c8e357.pth --device cpu
+python tests/smoke_features.py --gigapath-dir feature_extraction/gigapath --device cpu
+```
+
+The split tests check all five folds, coverage, label preservation, patient
+isolation, official CPTAC mappings, and equality to the published slide/CPTAC
+patient folds. The BRACS test generates an Excel fixture with the documented
+schema; real BRACS metadata is still required for the actual cohort. Feature
+tests use real supplied weights, verify 1024/2048/3072-dimensional ResNet and
+1536-dimensional GigaPath outputs, and check patch order and ResNet resume/output
+format compatibility. Tests use temporary directories and remove their own
+generated outputs. See the [reproduction audit](CRL-MIL/tests/README.md) for the
+checked environment and limits.
 
 ## Training and evaluation
 

@@ -42,7 +42,7 @@ def kfold_with_val(seed, total_label, output_folder, k=5, val_ratio=0.2):
         val_df.to_csv(os.path.join(output_folder, f'fold{fold}_val.csv'), index=False)
         test_df.to_csv(os.path.join(output_folder, f'fold{fold}_test.csv'), index=False)
 
-    print(f"{k}-折交叉验证划分完成（每折含 train / val / test）")
+    print(f"Created {k} folds, each with train / val / test.")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)

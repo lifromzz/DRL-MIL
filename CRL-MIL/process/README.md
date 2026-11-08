@@ -25,19 +25,24 @@ whether the downstream model predicts a slide or a patient.
 
 ## Inputs and label conventions
 
-- Slide-level CSV: columns `path,STAS`; `path` is a unique slide identifier,
+- Slide-level CSV: columns `path,STAS`; ready-to-use ordered manifests are
+  provided in [metadata/](metadata/README.md). `path` is a unique slide identifier,
   without the feature file's `.pt` suffix. Preserve the input row order to
   reproduce historical slide splits. Additional columns are retained.
 - BRACS patient metadata: the official `BRACS.xlsx`, sheet `WSI_Information`,
-  with `WSI Filename`, `Patient Id`, and `WSI label`.
+  with `WSI Filename`, `Patient Id`, and `WSI label`. Obtain it from the
+  [BRACS portal](https://www.bracs.icar.cnr.it/download/) using your dataset access,
+  then save it as `inputs/BRACS.xlsx` or pass its actual path. It is not included
+  in the clone. This workbook is needed only for the BRACS patient workflow.
 - CPTAC patient metadata: CSV with `path,STAS`, using bare slide IDs such as
   `C3L-00001-21` rather than full paths or `.svs` filenames.
 
 BRACS slide labels retain `UDH=0, DCIS=1, IC=2, ADH=3, PB=4, N=5, FEA=6`.
 The **case stratification label** is the most severe slide label under
 `N < PB < UDH < FEA < ADH < DCIS < IC`; the slide labels are not replaced.
-CPTAC case stratification uses the unique nonzero tumor subtype. Label `0`
-denotes adjacent normal; normal and tumor slides from one case remain together.
+CPTAC case stratification uses the unique nonzero tumor subtype: `1=LUAD`,
+`2=LUSC/LSCC`. Label `0` denotes adjacent normal; normal and tumor slides from
+one case remain together.
 Cases with conflicting tumor subtypes or without a tumor slide are rejected.
 
 ### CPTAC identifiers checked against TCIA
@@ -76,26 +81,40 @@ historical folds.**
 Run from `CRL-MIL/`:
 
 ```bash
-python -m pip install -r process/requirements.txt
+python -m pip install -c constraints-preprocessing.txt -r process/requirements.txt
 
 # Slide-level, five folds; use a distinct output folder for each dataset.
-python process/create_kflod.py --input-csv /path/to/BRACS.csv --output-dir data/BRACS_slide
-python process/create_kflod.py --input-csv /path/to/cptac_lung.csv --output-dir data/cptac_lung_slide
+python process/create_kflod.py --input-csv process/metadata/BRACS.csv --output-dir outputs/splits/BRACS_slide
+python process/create_kflod.py --input-csv process/metadata/cptac_lung.csv --output-dir outputs/splits/cptac_lung_slide
 
 # Patient-level; preserve historical fold assignments.
-python process/create_patient_split.py --dataset bracs --bracs-xlsx /path/to/BRACS.xlsx --output-root data
-python process/create_patient_split.py --dataset cptac --cptac-csv /path/to/cptac_lung.csv --output-root data
+python process/create_patient_split.py --dataset bracs --bracs-xlsx inputs/BRACS.xlsx --output-root outputs/splits
+python process/create_patient_split.py --dataset cptac --cptac-csv process/metadata/cptac_lung.csv --output-root outputs/splits
 
 # Optional explicit official IDs; write this distinct split version elsewhere.
-python process/create_patient_split.py --dataset cptac --cptac-csv /path/to/cptac_lung.csv --cptac-patient-map process/cptac_patient_map.csv --strict-cptac --output-root data/official_ids
+python process/create_patient_split.py --dataset cptac --cptac-csv process/metadata/cptac_lung.csv --cptac-patient-map process/cptac_patient_map.csv --strict-cptac --output-root outputs/official_ids
 ```
 
 Each dataset produces `fold0_train.csv`, `fold0_val.csv`, `fold0_test.csv`,
 through fold 4. Patient-level outputs are under `BRACS_patient/` and
 `cptac_lung_patient/`, contain `path,STAS,patient_id`, and include a
 `patient_split_summary.csv` with slide/patient/label counts. Existing files at
-the chosen output location are overwritten. Metadata and newly generated folds
-are not bundled with these scripts; provide your own local input tables.
+the chosen output location are overwritten. The two slide/label manifests are
+bundled; BRACS patient metadata and newly generated output folds are not.
+The examples use `outputs/` so that historical files in `data/` stay intact.
+
+To check the clone without model weights or restricted metadata, run:
+
+```bash
+python -m unittest discover -s tests -p test_splits.py -v
+```
+
+The tests exercise the real CLIs, compare the manifests' slide folds and CPTAC
+patient folds to `data/`, audit official case grouping, and create a synthetic
+BRACS workbook to check that input path. This synthetic workbook does not stand
+in for the actual BRACS cohort. For another/smaller cohort, each stratification
+class needs enough patients/rows for five outer folds and the inner stratified
+split; scikit-learn will warn or fail if those conditions are not met.
 
 ## Validation on the original inputs
 
@@ -121,3 +140,6 @@ separately and its output IDs agree with TCIA.
 Validation used pandas 2.3.3 and scikit-learn 1.6.1. This audit covers generated
 splits; it does not retrospectively establish which CSVs were used by a
 particular training run or overwrite the repository's existing data files.
+The subsequent [fresh-clone audit](../tests/README.md#fresh-clone-audit-on-2026-11-08)
+also executed the README commands in a clean Python 3.12 environment and checked
+all 60 resulting CSVs against the files already published in this repository.
