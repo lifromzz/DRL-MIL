@@ -1,4 +1,4 @@
-"""CLI regression tests; run from CRL-MIL with unittest discovery."""
+"""CLI regression tests; run from DRL-MIL with unittest discovery."""
 
 from collections import Counter
 from pathlib import Path
@@ -15,7 +15,7 @@ SPLITS = ("train", "val", "test")
 
 class SplitCLITests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="crl_splits_")
+        self.temporary = tempfile.TemporaryDirectory(prefix="drl_splits_")
         self.addCleanup(self.temporary.cleanup)
         self.tmp = Path(self.temporary.name)
 

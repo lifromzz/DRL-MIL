@@ -1,6 +1,6 @@
 # Preprocessing reproduction checks
 
-Run from `DRL-MIL/CRL-MIL` using the environment setup in the
+Run from `DRL-MIL/DRL-MIL` using the environment setup in the
 [root README](../../README.md#start-from-a-fresh-clone).
 
 ## Splits without restricted data or model weights

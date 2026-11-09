@@ -78,7 +78,7 @@ historical folds.**
 
 ## Usage
 
-Run from `CRL-MIL/`:
+Run from `DRL-MIL/`:
 
 ```bash
 python -m pip install -c constraints-preprocessing.txt -r process/requirements.txt

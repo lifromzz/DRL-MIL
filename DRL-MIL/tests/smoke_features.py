@@ -28,7 +28,7 @@ def main():
     if args.gigapath_dir:
         args.gigapath_dir = args.gigapath_dir.resolve()
 
-    with tempfile.TemporaryDirectory(prefix="crl_features_") as directory:
+    with tempfile.TemporaryDirectory(prefix="drl_features_") as directory:
         tmp = Path(directory)
         slide = tmp / "patches/slide.with.dots"
         slide.mkdir(parents=True)

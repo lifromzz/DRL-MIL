@@ -63,7 +63,7 @@ def main():
     parser.add_argument("--mean", nargs=3, type=float, default=[0.7476, 0.5583, 0.6705])
     parser.add_argument("--std", nargs=3, type=float, default=[0.1884, 0.2474, 0.1961])
     parser.add_argument("--output-format", choices=["legacy", "tensor"], default="legacy",
-                        help="legacy: original dictionary; tensor: current CRL-MIL loader format")
+                        help="legacy: original dictionary; tensor: current DRL-MIL loader format")
     args = parser.parse_args()
     if args.ckt:
         candidates = sorted(args.ckt.glob(f"*{args.arch}*.pth"))

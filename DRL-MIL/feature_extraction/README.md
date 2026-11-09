@@ -10,7 +10,7 @@ encoder is not used by these scripts.
 ## Installation and input layout
 
 Follow the [fresh-clone environment setup](../../README.md#start-from-a-fresh-clone)
-first. From `DRL-MIL/CRL-MIL`, the tested CPU baseline is:
+first. From `DRL-MIL/DRL-MIL`, the tested CPU baseline is:
 
 ```bash
 python -m pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
@@ -65,7 +65,7 @@ python -c "from pathlib import Path; from torch.hub import download_url_to_file;
 Then extract features:
 
 ```bash
-# Current CRL-MIL BagDataset_GPU.py expects a plain [N,D] tensor.
+# Current DRL-MIL BagDataset_GPU.py expects a plain [N,D] tensor.
 python feature_extraction/save_represention.py --data_dir /path/to/patches --repre_dir outputs/features_resnet --checkpoint feature_extraction/Checkpoint/resnet50-19c8e357.pth --arch resnet50 --stage stage4 --output-format tensor --bs 1 --num_workers 0 --device cpu
 
 # Historical serialization (default): {"l3": tensor}, {"l4": tensor}, or {"l34": tensor}.

@@ -9,8 +9,8 @@ __pycache__/
 *.safetensors
 *.whl
 *.7z
-CRL-MIL/feature_extraction/Checkpoint/
-CRL-MIL/feature_extraction/gigapath/
-CRL-MIL/feature_extraction/features/
-CRL-MIL/outputs/
-CRL-MIL/inputs/
+DRL-MIL/feature_extraction/Checkpoint/
+DRL-MIL/feature_extraction/gigapath/
+DRL-MIL/feature_extraction/features/
+DRL-MIL/outputs/
+DRL-MIL/inputs/
